@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 
 import streamlit as st
 
-from skylink_client import get_flight_status, to_row
+from aviationstack_client import get_flight_status, to_row
 from history_store import upsert_row, last_n_days
 
 FLIGHTS = ["EY239", "EY153", "EY156", "EY232"]
@@ -23,9 +23,9 @@ FLIGHTS = ["EY239", "EY153", "EY156", "EY232"]
 st.set_page_config(page_title="Flight Tracker", layout="centered")
 st.title("✈️ Flight Tracker")
 
-api_key = st.secrets.get("RAPIDAPI_KEY", os.environ.get("RAPIDAPI_KEY", ""))
+api_key = st.secrets.get("AVIATIONSTACK_API_KEY", os.environ.get("AVIATIONSTACK_API_KEY", ""))
 if not api_key:
-    st.error("No RAPIDAPI_KEY found. Add it to .streamlit/secrets.toml (local) "
+    st.error("No AVIATIONSTACK_API_KEY found. Add it to .streamlit/secrets.toml (local) "
               "or the app's Secrets (Streamlit Cloud).")
     st.stop()
 
@@ -35,13 +35,13 @@ refresh = st.button("🔄 Refresh now", type="primary")
 if refresh:
     try:
         data = get_flight_status(flight, api_key)
-        row = to_row(flight, data, datetime.now(timezone.utc).isoformat(timespec="seconds"))
-        if row["flight_date"]:
+        if not data:
+            st.warning(f"No current data returned for {flight} (it may not be scheduled today).")
+        else:
+            row = to_row(flight, data, datetime.now(timezone.utc).isoformat(timespec="seconds"))
             upsert_row(row)
             st.success(f"Updated {flight} — {row['status']}"
                        + (f" ({row['delay_minutes']} min delay)" if row.get("delay_minutes") else ""))
-        else:
-            st.warning("Got a response but couldn't parse a date from it — nothing saved.")
     except Exception as e:
         st.error(f"Couldn't fetch live status: {e}")
 
